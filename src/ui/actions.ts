@@ -138,7 +138,7 @@ export async function exportPng(mode: 'print' | 'preview') {
   } else {
     canvas = await thumbnail(doc, 4000, 1200);
   }
-  canvas.toBlob((b) => b && download(`${doc.name || 'label'}${mode === 'print' ? '-180dpi' : ''}.png`, b, 'image/png'));
+  canvas.toBlob((b) => b && download(`${doc.name || 'label'}${mode === 'print' ? `-${effectiveProfile(s.settings.profileId).dpi}dpi` : ''}.png`, b, 'image/png'));
 }
 
 export async function downloadPrintFile() {

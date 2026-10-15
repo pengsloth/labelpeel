@@ -1,3 +1,4 @@
+import { estimateEpsonStrip } from '../printer/epsonGeometry';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Printer, Download, Bluetooth, Scissors } from 'lucide-react';
 import { useEditor } from '../state/store';
@@ -188,10 +189,14 @@ export function PrintDialog() {
             </div>
             <div>
               <div className="section-title">
-                Preview: exact dots ({job ? `${job.bitmaps.length} label${job.bitmaps.length > 1 ? 's' : ''}, ${(totalMm / 10).toFixed(1)} cm of tape` : 'preparing…'})
+                Preview: exact dots ({job ? `${job.bitmaps.length} label${job.bitmaps.length > 1 ? 's' : ''}, ${(totalMm / 10).toFixed(1)} cm of raster` : 'preparing…'})
               </div>
               {plan && <p className="print-summary">{plan.summary}</p>}
-              {job && plan && <TapeStrip bitmaps={job.bitmaps.slice(0, 30)} plan={plan} media={doc.media} dpi={profile.dpi} more={job.bitmaps.length > 30} />}
+              {job && profile.id === 'epson-c610' && <p className="hint">Estimated finished tape: {job.bitmaps.reduce((sum, b) => sum + estimateEpsonStrip(b.width * 25.4 / profile.dpi).total, 0).toFixed(1)} mm including printer-added space.</p>}
+              {job && plan && <TapeStrip bitmaps={job.bitmaps.slice(0, 30)} plan={plan} media={doc.media} dpi={profile.dpi} more={job.bitmaps.length > 30} estimate={profile.id === 'epson-c610'} />}
+              <div className="preview-legend"><span><i className="key-unprintable" /> Unprintable</span><span><i className="key-margin" /> Design margins</span>{profile.id === 'epson-c610' && <span><i className="key-estimate" /> Estimated printer blank</span>}</div>
+              {profile.id === 'epson-c610' && <p className="hint">Amber end space is approximate, based on 12 mm nylon tape (about 21 mm minimum finished length). Other tape widths and materials are uncalibrated. It is shown for reference and is not added to the print data.</p>}
+              {profile.id === 'epson-px400' && <p className="hint">PX400 printer-added end space is not calibrated; the preview shows the design raster.</p>}
               {job && job.bitmaps.length > 30 && <div className="hint">Showing the first 30.</div>}
               <div className="hint" style={{ marginTop: 6 }}>
                 <Scissors size={11} /> full cut · <span className="key-half" /> half cut · <span className="key-join" /> label edge, not cut. Shaded edges are tape the print head can't reach; anything in red won't print.
@@ -255,7 +260,9 @@ function TapeLabel({ bmp, media, scale, dpi }: { bmp: PrintBitmap; media: Media;
       for (let col = 0; col < bmp.width; col++) {
         const on = inBand ? bmp.bits[(r - m) * bmp.width + col] : bmp.spill?.[(r < m ? r : r - bmp.height) * bmp.width + col];
         const bg = r >= clearRow ? (inBand ? clear : shade(clear, 0.18)) : inBand ? tape : edge;
-        img.data.set([...(on ? (inBand ? ink : lost) : bg), 255], (r * bmp.width + col) * 4);
+        const inMargin = inBand && (col < (bmp.designMargins?.start ?? 0) || col >= bmp.width - (bmp.designMargins?.end ?? 0));
+        const background = inMargin ? bg.map((v, i) => Math.round(v * 0.80 + [59, 130, 246][i] * 0.20)) : bg;
+        img.data.set([...(on ? (inBand ? ink : lost) : background), 255], (r * bmp.width + col) * 4);
       }
     }
     cx.putImageData(img, 0, 0);
@@ -272,7 +279,7 @@ function TapeLabel({ bmp, media, scale, dpi }: { bmp: PrintBitmap; media: Media;
  * The job as it comes out of the printer: labels end to end on one strip,
  * split into separate pieces wherever the printer makes a full cut.
  */
-function TapeStrip({ bitmaps, plan, media, dpi, more }: { bitmaps: PrintBitmap[]; plan: CutPlan; media: Media; dpi: number; more: boolean }) {
+function TapeStrip({ bitmaps, plan, media, dpi, more, estimate = false }: { estimate?: boolean; bitmaps: PrintBitmap[]; plan: CutPlan; media: Media; dpi: number; more: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(400);
   useEffect(() => {
@@ -291,9 +298,9 @@ function TapeStrip({ bitmaps, plan, media, dpi, more }: { bitmaps: PrintBitmap[]
   const rows = bitmaps[0].margin * 2 + bitmaps[0].height;
   // Fit the longest uncut piece to the width (pieces that are cut apart wrap
   // onto new rows), within a readable range; longer strips scroll.
-  const widest = Math.max(...pieces.map((pc) => pc.reduce((w, i) => w + bitmaps[i].width, 0)));
+  const widest = Math.max(...pieces.map((pc) => pc.reduce((w, i) => w + (estimate ? estimateEpsonStrip(bitmaps[i].width * 25.4 / dpi).total * dpi / 25.4 : bitmaps[i].width), 0)));
   const scale = Math.max(48 / rows, Math.min(1.4, 150 / rows, avail / widest));
-  const mm = (b: PrintBitmap) => `${(b.width / (dpi / 25.4)).toFixed(1)} mm`;
+  const mm = (b: PrintBitmap) => estimate ? `${(b.width * 25.4 / dpi).toFixed(1)} mm raster; ~${estimateEpsonStrip(b.width * 25.4 / dpi).total.toFixed(1)} mm finished (estimate)` : `${(b.width * 25.4 / dpi).toFixed(1)} mm`;
   return (
     <div className="tape-strip" ref={ref}>
       {pieces.map((piece, k) => (
@@ -302,7 +309,9 @@ function TapeStrip({ bitmaps, plan, media, dpi, more }: { bitmaps: PrintBitmap[]
             {piece.map((i, j) => (
               <div key={i} className="tape-label" title={`Label ${i + 1} · ${mm(bitmaps[i])}`}>
                 {j > 0 && <span className={`tape-joint ${plan.joints[i - 1]}`} title={plan.joints[i - 1] === 'half' ? 'Half cut' : 'Label edge, not cut'} />}
+                {estimate && <span className="estimated-blank" style={{ width: estimateEpsonStrip(bitmaps[i].width * 25.4 / dpi).lead * dpi / 25.4 * scale, height: rows * scale }} title="Estimated blank added by printer" />}
                 <TapeLabel bmp={bitmaps[i]} media={media} scale={scale} dpi={dpi} />
+                {estimate && <span className="estimated-blank" style={{ width: estimateEpsonStrip(bitmaps[i].width * 25.4 / dpi).trail * dpi / 25.4 * scale, height: rows * scale }} title="Estimated blank added by printer" />}
               </div>
             ))}
             {k === pieces.length - 1 && !more && plan.end !== 'cut' && (

@@ -40,15 +40,31 @@ The new encoder passes command-byte, orientation, cut, packet parsing and DPI
 tests. A 30 mm LP1 calibration raster from the new encoder was sent via COM7 on
 2026-10-14 with 24 mm tape (TW:05), 256 raster rows and zero added margins.
 The C610 reported printing (ST:02), then print complete (ST:05), with ER:00.
-Visual confirmation and validation of the integrated Labelpeel UI remain pending.
+The user confirmed LP1 printed correctly. Validation of printing through the
+integrated Labelpeel UI remains pending.
+
+## Cable wraps and previews
+
+Cable-wrap text accepts multiple lines. Automatic repetition uses browser font
+measurements, selected maximum text size and the repeat gap. Start/end design
+margins reduce the repeat area; extra overlap remains blank. Explicit repeats
+shrink to fit, with excessive counts capped to keep blocks separate. Empty text
+or fully exhausted margins produce no generated ink. Loaded fonts trigger a
+reflow; detached free elements keep their normal behavior.
+
+Editor and print previews distinguish gray unreachable head space, blue design
+margins and amber estimated printer-added blank space. The C610 physical estimate
+uses 0.5 mm per end and about 21 mm minimum overall length, based on the earlier
+12 mm nylon experiments. Other widths/materials are explicitly uncalibrated;
+PX400 has no physical padding estimate yet. These estimates never add columns
+to the transmitted raster. The live dot-preview label and PNG export filename
+show the selected model's actual DPI.
 
 ## Next work
 
 - Confirm C610 operation from this branch, including a known-length calibration.
 - Confirm corrected PX400 scale and printable band on actual hardware.
-- Improve cable-wrap multiline auto-repeat using measured text block dimensions
-  and user-selected text size / spacing (existing template repetition is heuristic).
-- Show estimated printer-added end space separately from design margins.
+- Calibrate printer-added end space on other tape widths and materials.
 - Integrate the proven Android connection route and test it in this application.
 
 ## Provenance

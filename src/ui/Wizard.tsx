@@ -12,6 +12,12 @@ import { importLbxFile, loadDoc, openFile, thumbnail } from './actions';
 import { effectiveProfile } from '../printer/service';
 
 export function Wizard() {
+  const [fontTick, setFontTick] = useState(0);
+  useEffect(() => {
+    const loaded = () => setFontTick((t) => t + 1);
+    document.fonts?.addEventListener('loadingdone', loaded);
+    return () => document.fonts?.removeEventListener('loadingdone', loaded);
+  }, []);
   const open = useEditor((s) => s.wizardOpen);
   const set = useEditor((s) => s.set);
   const settings = useEditor((s) => s.settings);
@@ -43,7 +49,7 @@ export function Wizard() {
     let doc = applyLabelType(newDoc({ media }), typeId, params);
     if (typeId === 'general') doc = { ...doc, elements: [makeText(doc, 'Hello', { bold: true })] };
     return doc;
-  }, [typeId, media, params]);
+  }, [typeId, media, params, fontTick]);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

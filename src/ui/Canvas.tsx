@@ -1,3 +1,4 @@
+import { estimateEpsonStrip } from '../printer/epsonGeometry';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Minus, Plus, Maximize, ChevronLeft, ChevronRight, Grid3x3, AlertTriangle } from 'lucide-react';
 import { useEditor } from '../state/store';
@@ -329,6 +330,32 @@ export function EditorCanvas() {
       } else {
         ctx.fillRect(panX + pr.x * zoom, panY, pr.w * zoom, a);
         ctx.fillRect(panX + pr.x * zoom, panY + lh - a, pr.w * zoom, a);
+      }
+    }
+    ctx.restore();
+    // Blue: user design margins. These overlays do not change printable dots.
+    ctx.save();
+    ctx.fillStyle = 'rgba(59,130,246,0.16)';
+    const startMargin = Math.min(layout.length, Math.max(0, doc.marginStart)) * zoom;
+    const endMargin = Math.min(layout.length, Math.max(0, doc.marginEnd)) * zoom;
+    if (!portrait) {
+      ctx.fillRect(panX, panY + pr.y * zoom, startMargin, pr.h * zoom);
+      ctx.fillRect(panX + lw - endMargin, panY + pr.y * zoom, endMargin, pr.h * zoom);
+    } else {
+      ctx.fillRect(panX + pr.x * zoom, panY, pr.w * zoom, startMargin);
+      ctx.fillRect(panX + pr.x * zoom, panY + lh - endMargin, pr.w * zoom, endMargin);
+    }
+    if (profile.id === 'epson-c610') {
+      const extra = estimateEpsonStrip(layout.length).lead * zoom;
+      ctx.fillStyle = 'rgba(245,158,11,0.25)';
+      ctx.strokeStyle = 'rgba(245,158,11,0.8)';
+      ctx.setLineDash([4, 3]);
+      for (const side of [-1, 1]) {
+        const x = portrait ? panX : side < 0 ? panX - extra : panX + lw;
+        const y = !portrait ? panY : side < 0 ? panY - extra : panY + lh;
+        const w = portrait ? lw : extra, h = portrait ? extra : lh;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeRect(x, y, w, h);
       }
     }
     ctx.restore();
@@ -915,6 +942,15 @@ export function EditorCanvas() {
         />
       )}
 
+      <details className="floating preview-key" onPointerDown={(e) => e.stopPropagation()}>
+        <summary>Preview · {profile.dpi} DPI</summary>
+        <div><i className="key-printable" /> Printable area</div>
+        <div><i className="key-unprintable" /> Head cannot reach</div>
+        <div><i className="key-margin" /> Design margins</div>
+        {profile.id === 'epson-c610' && <div><i className="key-estimate" /> Estimated printer blank: {estimateEpsonStrip(layout.length).lead.toFixed(1)} mm / end</div>}
+        {profile.id === 'epson-c610' && <small>Estimate from 12 mm nylon; other tape is uncalibrated. Amber space is not sent to the printer.</small>}
+        {profile.id === 'epson-px400' && <small>Printer-added end space is not yet calibrated.</small>}
+      </details>
       {printBmp.spillDots > 0 && (
         <div className="floating clip-warning" role="status">
           <AlertTriangle size={14} />
@@ -923,7 +959,7 @@ export function EditorCanvas() {
       )}
 
       <div className="floating zoom" onPointerDown={(e) => e.stopPropagation()}>
-        <button className={`btn ghost icon sm ${dotPreview ? 'active' : ''}`} title="Dot preview: show exactly what the printer prints (180 dpi)" onClick={() => set({ dotPreview: !dotPreview })}>
+        <button className={`btn ghost icon sm ${dotPreview ? 'active' : ''}`} title={`Dot preview: show the printer raster (${profile.dpi} DPI)`} onClick={() => set({ dotPreview: !dotPreview })}>
           <Grid3x3 size={15} />
         </button>
         <div className="sep" />

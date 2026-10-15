@@ -1,3 +1,4 @@
+import { applyLabelType } from '../model/labelTypes';
 import { X, Usb, Bluetooth, Cable, RefreshCw, Scissors, Unplug, Download } from 'lucide-react';
 import { useEditor } from '../state/store';
 import { connect, disconnect, feedAndCut, refreshStatus, usePrinter, effectiveProfile } from '../printer/service';
@@ -52,7 +53,10 @@ export function PrinterPanel() {
               onChange={(profileId) => {
                 st().setSettings({ profileId });
                 const selected = profileById(profileId);
-                st().update((d) => ({ ...d, media: fitMedia(d.media, selected.media, selected.maxTape) }));
+                st().update((d) => {
+                  const next = { ...d, media: fitMedia(d.media, selected.media, selected.maxTape) };
+                  return next.labelType === 'cable-wrap' ? applyLabelType(next, 'cable-wrap') : next;
+                });
                 usePrinter.setState({ detectedProfile: null });
               }}
               options={PROFILES.map((p) => ({ value: p.id, label: `${p.name}${p.bluetooth ? ' (Bluetooth)' : ''}${p.experimental ? ' (experimental)' : ''}` }))}

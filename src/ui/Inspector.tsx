@@ -112,10 +112,10 @@ function LabelPanel({ doc }: { doc: LabelDoc }) {
         )}
         <div className="grid2">
           <Field label="Start margin">
-            <NumberInput value={doc.marginStart} onChange={(v) => set({ marginStart: v }, 'mstart')} unit="mm" min={0} max={50} step={0.5} />
+            <NumberInput value={doc.marginStart} onChange={(v) => def.id === 'cable-wrap' ? reapply({ marginStart: v }) : set({ marginStart: v }, 'mstart')} unit="mm" min={0} max={50} step={0.5} />
           </Field>
           <Field label="End margin">
-            <NumberInput value={doc.marginEnd} onChange={(v) => set({ marginEnd: v }, 'mend')} unit="mm" min={0} max={50} step={0.5} />
+            <NumberInput value={doc.marginEnd} onChange={(v) => def.id === 'cable-wrap' ? reapply({ marginEnd: v }) : set({ marginEnd: v }, 'mend')} unit="mm" min={0} max={50} step={0.5} />
           </Field>
         </div>
         <Field label="Frame">
@@ -146,13 +146,13 @@ function LabelPanel({ doc }: { doc: LabelDoc }) {
             options={[{ value: 'each', label: 'Each label' }, { value: 'end', label: 'At end' }, { value: 'none', label: 'Never' }]}
           />
         </Field>
-        {doc.print.cut === 'each' && (
+        {profile.protocol !== 'epson' && doc.print.cut === 'each' && (
           <Field label="Cut after every">
             <NumberInput value={doc.print.cutEvery} onChange={(v) => set({ print: { ...doc.print, cutEvery: Math.round(v) } })} unit="labels" min={1} max={99} step={1} />
           </Field>
         )}
         {profile.halfCut && <Check checked={doc.print.halfCut} onChange={(v) => set({ print: { ...doc.print, halfCut: v } })} label="Half cut between labels (backing stays joined)" />}
-        <Check checked={doc.print.chain} onChange={(v) => set({ print: { ...doc.print, chain: v } })} label="Chain print (save tape: last label is cut with the next job)" />
+        {profile.protocol !== 'epson' && <Check checked={doc.print.chain} onChange={(v) => set({ print: { ...doc.print, chain: v } })} label="Chain print (save tape: last label is cut with the next job)" />}
         {doc.print.cut === 'none' && <Check checked={doc.print.cutMarks} onChange={(v) => set({ print: { ...doc.print, cutMarks: v } })} label="Print cut marks" />}
         <Check checked={doc.print.mirror} onChange={(v) => set({ print: { ...doc.print, mirror: v } })} label="Mirror (for back-printing clear tape)" />
         <Check checked={doc.print.reverse} onChange={(v) => set({ print: { ...doc.print, reverse: v } })} label="Print records in reverse order" />
@@ -180,6 +180,7 @@ export function TypeParamsForm() {
   const def = labelType(doc.labelType);
   const p = { ...def.defaults, ...doc.typeParams };
   return (
+    <>
     <ParamsForm
       params={def.params}
       values={p}
@@ -193,6 +194,8 @@ export function TypeParamsForm() {
         setTypeParams(next);
       }}
     />
+    {def.id === 'cable-wrap' && <p className="hint">{doc.elements.filter((e) => e.generated).length} complete repeats. Overlap stays blank; margins reduce the repeat area. Excessive repeat counts are limited to prevent overlap.</p>}
+    </>
   );
 }
 

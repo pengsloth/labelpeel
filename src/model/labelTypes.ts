@@ -1,3 +1,4 @@
+import { generateCableWrap } from './cableWrap';
 // Label types (the "Pro" workflows): each has a settings form and a generator
 // that lays out elements. Generated elements are replaced whenever settings
 // change; anything the user adds by hand is kept.
@@ -158,9 +159,11 @@ export const LABEL_TYPES: LabelTypeDef[] = [
     icon: 'Cable',
     media: { kind: 'tze', width: 12 },
     params: [
-      { key: 'text', label: 'Text', type: 'text' },
+      { key: 'text', label: 'Text', type: 'textarea' },
       { key: 'diameter', label: 'Cable diameter', type: 'number', unit: 'mm', min: 1, max: 60, step: 0.5 },
-      { key: 'repeat', label: 'Repeats (0 = auto)', type: 'number', min: 0, max: 20 },
+      { key: 'repeat', label: 'Repeats (0 = auto)', type: 'number', min: 0, max: 100 },
+      { key: 'textSize', label: 'Text size', type: 'number', unit: 'pt', min: 4, max: 72, step: 0.5, help: 'Maximum size; shrinks only when needed to fit.' },
+      { key: 'gap', label: 'Repeat gap', type: 'number', unit: 'mm', min: 0, max: 10, step: 0.1 },
       { key: 'dir', label: 'Text direction', type: 'select', options: [
         { value: 'along', label: 'Along the cable (rotated)' },
         { value: 'around', label: 'Around the cable (horizontal)' },
@@ -168,36 +171,8 @@ export const LABEL_TYPES: LabelTypeDef[] = [
       { key: 'overlap', label: 'Extra overlap', type: 'number', unit: 'mm', min: 0, max: 40, step: 1, help: 'Added length so the ends overlap and stick.' },
       ...fontParams,
     ],
-    defaults: { text: 'PSU-01', diameter: 6, repeat: 0, dir: 'along', overlap: 0, font: 'Roboto Condensed', bold: true },
-    generate(doc, p) {
-      const r = printableRect(doc);
-      const circ = Math.PI * num(p.diameter, 6);
-      const len = circ + num(p.overlap, 0);
-      const along = str(p.dir) !== 'around';
-      const n = num(p.repeat, 0) > 0 ? Math.round(num(p.repeat, 1)) : Math.max(1, Math.min(12, Math.round(circ / (along ? 4.5 : 22))));
-      const seg = circ / n;
-      const els: LabelElement[] = [];
-      for (let i = 0; i < n; i++) {
-        const cx = i * seg + seg / 2;
-        if (along) {
-          // Rotated text: its own width runs across the tape.
-          const w = r.h * 0.96;
-          const h = seg * 0.82;
-          els.push(gen(makeText(doc, str(p.text), { x: cx - w / 2, y: r.y + r.h / 2 - h / 2, w, h, rotation: 270, autoWidth: false, autoSize: true, font: str(p.font), bold: bool(p.bold) })));
-        } else {
-          els.push(gen(makeText(doc, str(p.text), { x: i * seg + seg * 0.05, y: r.y, w: seg * 0.9, h: r.h, autoWidth: false, autoSize: true, font: str(p.font), bold: bool(p.bold) })));
-        }
-      }
-      return {
-        elements: els,
-        orientation: 'landscape',
-        lengthMode: 'fixed',
-        length: Math.round(len * 10) / 10,
-        marginStart: 0,
-        marginEnd: 0,
-        guides: Array.from({ length: n - 1 }, (_, i) => ({ axis: 'x' as const, pos: (i + 1) * seg })),
-      };
-    },
+    defaults: { text: 'PSU-01', diameter: 6, repeat: 0, textSize: 8, gap: 0.6, dir: 'along', overlap: 0, font: 'Roboto Condensed', bold: true },
+    generate: generateCableWrap,
   },
   {
     id: 'cable-flag',

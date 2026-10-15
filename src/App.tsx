@@ -1,3 +1,5 @@
+import { applyLabelType } from './model/labelTypes';
+import { clearMetrics } from './render/render';
 import { useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, Info, Shapes, SlidersHorizontal } from 'lucide-react';
 import { TopBar } from './ui/TopBar';
@@ -133,6 +135,16 @@ function Toast() {
 
 export default function App() {
   useShortcuts();
+  useEffect(() => {
+    const reflow = () => {
+      clearMetrics();
+      const s = useEditor.getState();
+      if (s.doc.labelType === 'cable-wrap') s.update((d) => applyLabelType(d, 'cable-wrap'));
+    };
+    document.fonts?.addEventListener('loadingdone', reflow);
+    return () => document.fonts?.removeEventListener('loadingdone', reflow);
+  }, []);
+
   const theme = useEditor((s) => s.settings.theme);
   useEffect(() => {
     const apply = () => {

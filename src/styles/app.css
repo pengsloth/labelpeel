@@ -1354,3 +1354,17 @@ textarea {
     display: none;
   }
 }
+
+/* Preview overlays are explanatory only; raster bytes remain monochrome. */
+.preview-key { left: 12px; bottom: 56px; display: block; padding: 7px 10px; max-width: min(300px, calc(100% - 24px)); font-size: 11px; }
+.preview-key summary { cursor: pointer; }
+.preview-key div { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.preview-key small { display: block; max-width: 240px; margin-top: 6px; color: var(--text3); }
+.preview-key i, .preview-legend i { display: inline-block; width: 11px; height: 11px; border: 1px solid #9ca3af; flex-shrink: 0; }
+.key-printable { background: #fff; }
+.key-unprintable { background: #cbd0d9; }
+.key-margin { background: #b6d0fa; }
+.key-estimate, .estimated-blank { background: repeating-linear-gradient(135deg, #fce4ad 0 4px, #f6c96d 4px 5px); }
+.estimated-blank { display: block; flex-shrink: 0; border-block: 1px dashed #bd7b09; }
+.preview-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: 11px; }
+.preview-legend span { display: inline-flex; align-items: center; gap: 5px; }

@@ -133,7 +133,7 @@ function splitBitmap(bmp: PrintBitmap, doc: LabelDoc, dpm: number): PrintBitmap[
     };
     const spill = bmp.spill && slice(bmp.spill, bmp.margin * 2);
     const spillDots = spill ? spill.reduce((n, v) => n + v, 0) : 0;
-    out.push({ width: w, height: bmp.height, bits: slice(bmp.bits, bmp.height), lengthMm: w / dpm, margin: bmp.margin, spill: spillDots ? spill : null, spillDots });
+    out.push({ width: w, height: bmp.height, bits: slice(bmp.bits, bmp.height), lengthMm: w / dpm, margin: bmp.margin, designMargins: { start: lead + Math.max(0, Math.min(b - a, (bmp.designMargins?.start ?? 0) - a)), end: tail + Math.max(0, Math.min(b - a, b - (bmp.width - (bmp.designMargins?.end ?? 0)))) }, spill: spillDots ? spill : null, spillDots });
   }
   return out;
 }

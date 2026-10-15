@@ -1,3 +1,4 @@
+import { setWrapMeasure } from '../model/cableWrap';
 // Label renderer shared by the editor (screen) and the printer (1-bit raster).
 // Coordinates are converted from mm to pixels by multiplying with `s`.
 
@@ -178,6 +179,8 @@ export function fitText(
     hasDesc,
   };
 }
+
+setWrapMeasure((text, style, width, height) => fitText(text, style, width, height, false, style.size, false, false, true));
 
 // ---------------------------------------------------------------- layout
 
@@ -986,6 +989,8 @@ export function renderLabel(ctx: CanvasRenderingContext2D, doc: LabelDoc, layout
 // ---------------------------------------------------------------- printing
 
 export interface PrintBitmap {
+  /** Preview-only design margins in raster columns; never inserted into the job. */
+  designMargins?: { start: number; end: number };
   width: number;
   height: number;
   bits: Uint8Array;
@@ -1074,5 +1079,5 @@ export function renderPrintBitmap(
       for (let c = 0; c < tw; c++) if ((c < start || c >= start + w) && bits[r * tw + c]) spillDots++;
     return { width: w, height: rows, bits: crop(bits, rows), lengthMm: layout.length, margin, spill: spill && crop(spill, margin * 2), spillDots };
   }
-  return { width: tw, height: rows, bits, lengthMm: layout.length, margin, spill, spillDots };
+  return { designMargins: { start: Math.round(Math.max(0, doc.marginStart) * dpm), end: Math.round(Math.max(0, doc.marginEnd) * dpm) }, width: tw, height: rows, bits, lengthMm: layout.length, margin, spill, spillDots };
 }
