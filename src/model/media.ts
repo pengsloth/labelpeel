@@ -29,6 +29,12 @@ export interface TapeSize {
 
 // Print areas from the Brother raster command references. Narrow heads clamp
 // to their pin count.
+// Epson SDK print areas, not Brother TZe dimensions. PX400 uses half the
+// C610 dot count at 180 dpi (same physical printable band).
+export const EPSON_SIZES: TapeSize[] = [
+  [4, 44], [6, 72], [9, 108], [12, 144], [18, 216], [24, 256],
+].map(([width, dots]) => ({ width, code: width, dots180: dots / 2, dots360: dots, label: `${width} mm` }));
+
 export const TZE_SIZES: TapeSize[] = [
   { width: 3.5, code: 4, dots180: 24, dots360: 48, label: '3.5 mm' },
   { width: 6, code: 6, dots180: 32, dots360: 64, label: '6 mm' },
@@ -84,6 +90,7 @@ export const DK_LABELS: TapeSize[] = [
 export const isDk = (kind: MediaKind) => kind === 'dk' || kind === 'dkdie';
 
 export function sizesFor(kind: MediaKind): TapeSize[] {
+  if (kind === 'epson') return EPSON_SIZES;
   if (kind === 'hse') return HSE_SIZES;
   if (kind === 'fle') return FLE_SIZES;
   if (kind === 'dk') return DK_ROLLS;
@@ -148,6 +155,7 @@ export const TAPE_COLORS: { name: string; tape: string; ink: string }[] = [
 ];
 
 export const MEDIA_KIND_LABELS: Record<MediaKind, string> = {
+  epson: 'Epson LabelWorks tape',
   tze: 'TZe tape',
   hse: 'Heat-shrink',
   fle: 'FLe flag',

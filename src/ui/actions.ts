@@ -248,6 +248,7 @@ export function matchLoadedTape(status: PrinterStatus) {
 
 /** The media the printer reports, as design media (keeping what it doesn't report). */
 export function reportedMedia(status: PrinterStatus, current: Media): Media {
+  if (status.mediaType === 0x80) return { ...current, kind: 'epson', width: status.mediaWidth, length: undefined };
   const paper = { tapeColor: '#ffffff', inkColor: '#111111' };
   if (status.mediaType === 0x0a) return { ...current, ...paper, kind: 'dk', width: status.mediaWidth, length: undefined };
   if (status.mediaType === 0x0b) {

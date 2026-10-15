@@ -106,9 +106,9 @@ export function TextArea({ value, onChange, placeholder, rows = 3 }: { value: st
   );
 }
 
-export function Select<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+export function Select<T extends string>({ value, onChange, options, disabled }: { disabled?: boolean; value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
   return (
-    <select className="select" value={value} onChange={(e) => onChange(e.target.value as T)}>
+    <select className="select" disabled={disabled} value={value} onChange={(e) => onChange(e.target.value as T)}>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -118,10 +118,10 @@ export function Select<T extends string>({ value, onChange, options }: { value: 
   );
 }
 
-export function Check({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
+export function Check({ checked, onChange, label, disabled }: { disabled?: boolean; checked: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
   return (
     <label className="check">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" disabled={disabled} checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>{label}</span>
     </label>
   );

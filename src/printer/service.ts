@@ -1,3 +1,4 @@
+import { buildEpsonJob, epsonStatusRequest, epsonStatusStop, findEpsonStatus } from './epson';
 import { create } from 'zustand';
 import { findTape, headOffset, isDk, MM_PER_INCH, printableBand } from '../model/media';
 import { enumeratePages } from '../model/pages';
@@ -19,6 +20,7 @@ export interface LogLine {
 
 interface PrinterState {
   transport: Transport | null;
+  connectedProfile: PrinterProfile | null;
   connecting: boolean;
   status: PrinterStatus | null;
   /**
@@ -36,6 +38,7 @@ interface PrinterState {
 
 export const usePrinter = create<PrinterState>((set, get) => ({
   transport: null,
+  connectedProfile: null,
   connecting: false,
   status: null,
   responded: false,
@@ -48,7 +51,8 @@ export const usePrinter = create<PrinterState>((set, get) => ({
 
 const log = (level: LogLine['level'], text: string) => usePrinter.getState().addLog(level, text);
 
-export async function connect(kind: 'usb' | 'bluetooth' | 'serial' | 'native' | 'native-usb'): Promise<Transport> {
+export async function connect(kind: 'usb' | 'bluetooth' | 'serial' | 'native' | 'native-usb', profile: PrinterProfile = profileById(null)): Promise<Transport> {
+  if (profile.protocol === 'epson' && !['bluetooth', 'serial'].includes(kind)) throw new Error('Epson integration currently supports Bluetooth / serial only.');
   const st = usePrinter.getState();
   if (st.transport) await disconnect();
   usePrinter.setState({ connecting: true });
@@ -61,10 +65,10 @@ export async function connect(kind: 'usb' | 'bluetooth' | 'serial' | 'native' | 
           : await connectSerial({ bluetoothOnly: kind === 'bluetooth', log: (msg) => log('info', msg) });
     t.onDisconnect = () => {
       log('error', 'Printer disconnected.');
-      usePrinter.setState({ transport: null, status: null, responded: false });
+      usePrinter.setState({ transport: null, connectedProfile: null, status: null, responded: false });
     };
     const detected = t.usbProductId != null ? profileByPid(t.usbProductId) ?? null : null;
-    usePrinter.setState({ transport: t, detectedProfile: detected, responded: false });
+    usePrinter.setState({ transport: t, connectedProfile: detected ?? profile, detectedProfile: detected, responded: false });
     // Opening a serial port doesn't prove the printer is there; its reply does.
     log('info', `${t.kind === 'serial' ? 'Port opened' : 'Connected'}: ${t.label}${detected ? ` — ${detected.name}` : ''}`);
     refreshStatus().catch((e) => log('error', `Status: ${(e as Error).message}`));
@@ -76,7 +80,7 @@ export async function connect(kind: 'usb' | 'bluetooth' | 'serial' | 'native' | 
 
 export async function disconnect() {
   const t = usePrinter.getState().transport;
-  usePrinter.setState({ transport: null, status: null, responded: false, detectedProfile: null });
+  usePrinter.setState({ transport: null, connectedProfile: null, status: null, responded: false, detectedProfile: null });
   if (t) await t.close().catch(() => undefined);
   log('info', 'Disconnected.');
 }
@@ -89,6 +93,7 @@ async function send(t: Transport, data: Uint8Array) {
 export async function refreshStatus(): Promise<PrinterStatus | null> {
   const t = usePrinter.getState().transport;
   if (!t) return null;
+  if (usePrinter.getState().connectedProfile?.protocol === 'epson') return refreshEpsonStatus(t);
   await t.read(30); // drain
   await send(t, concat([cmdInvalidate(), cmdInit(), cmdStatusRequest()]));
   const bytes = await t.read(2500);
@@ -157,6 +162,8 @@ export async function prepareJob(
   range?: { from: number; to: number },
   labels?: LabelDoc[],
 ): Promise<PreparedJob> {
+  if ((profile.protocol === 'epson' || doc.media.kind === 'epson') && !profile.media.includes(doc.media.kind)) throw new Error(`Choose ${profile.media.join(' / ')} media for ${profile.name}.`);
+  if (doc.media.width > profile.maxTape) throw new Error('Tape is wider than the selected printer supports.');
   if (isDk(doc.media.kind) !== profile.ql) {
     throw new Error(
       isDk(doc.media.kind)
@@ -181,7 +188,7 @@ export async function prepareJob(
       for (const section of splitBitmap(bmp, d, dpm)) for (let c = 0; c < Math.max(1, d.print.copies); c++) bitmaps.push(section);
     }
   }
-  if (profile.ql) minimal = false; // the minimal command set is for P-touch printers
+  if (profile.ql || profile.protocol === 'epson') minimal = false; // the minimal command set is for P-touch printers
   const options: JobOptions = {
     ...jobMedia(doc.media),
     autoCut: doc.print.cut === 'each',
@@ -193,7 +200,7 @@ export async function prepareJob(
     minimal,
   };
   const offset = (b: PrintBitmap) => headOffset(doc.media.kind, doc.media.width, profile.headPins, b.height, doc.media.length);
-  const chunks = buildJob(bitmaps.map((b) => bitmapToRaster(b, profile, offset(b))), profile, options);
+  const chunks = profile.protocol === 'epson' ? buildEpsonJob(bitmaps, doc.print.cut) : buildJob(bitmaps.map((b) => bitmapToRaster(b, profile, offset(b))), profile, options);
   return { bitmaps, profile, options, chunks, bytes: chunks.reduce((s, c) => s + c.length, 0), skipped };
 }
 
@@ -201,9 +208,18 @@ export async function runJob(job: PreparedJob): Promise<void> {
   const st = usePrinter.getState();
   const t = st.transport;
   if (!t) throw new Error('Connect a printer first.');
+  if (st.busy) throw new Error('A print job is already running.');
+  if (st.connectedProfile?.id !== job.profile.id) throw new Error('Reconnect using the selected printer model before printing.');
   if (job.profile.unsupported) log('error', job.profile.unsupported);
   usePrinter.setState({ busy: true, progress: 0 });
   try {
+    if (job.profile.protocol === 'epson') {
+      const status = await refreshEpsonStatus(t);
+      if (!status || status.errors.length || status.phase !== 0 || status.mediaWidth !== job.options.mediaWidth) {
+        throw new Error('Epson must report idle, no errors, and matching tape width before printing. Check Status.');
+      }
+      await t.read(30);
+    }
     const total = job.bytes;
     let sent = 0;
     log('info', `Sending ${job.bitmaps.length} label(s), ${(total / 1024).toFixed(1)} KB to ${job.profile.name}${job.options.minimal ? ' (minimal protocol)' : ''}`);
@@ -213,7 +229,8 @@ export async function runJob(job: PreparedJob): Promise<void> {
       usePrinter.setState({ progress: sent / total });
     }
     log('info', 'Job sent.');
-    await watchJob(t);
+    if (job.profile.protocol === 'epson') await watchEpsonJob(t);
+    else await watchJob(t);
   } finally {
     usePrinter.setState({ busy: false });
   }
@@ -271,11 +288,57 @@ function jobMedia(media: Media): Pick<JobOptions, 'mediaWidth' | 'mediaType' | '
 export async function feedAndCut(profile: PrinterProfile, media: Media) {
   const t = usePrinter.getState().transport;
   if (!t) throw new Error('Connect a printer first.');
+  if (profile.protocol === 'epson') throw new Error('Standalone Epson feed / cut is not yet implemented. Use the print cut setting.');
   // A die-cut roll feeds a whole (blank) label.
   const blank = media.kind === 'dkdie' ? printableBand(media.kind, media.width, profile.dpi, profile.headPins, media.length).lengthDots ?? 1 : 1;
   for (const c of buildFeedCutJob(profile, jobMedia(media), blank)) await send(t, c);
 }
 
 export function effectiveProfile(settingsId: string): PrinterProfile {
-  return usePrinter.getState().detectedProfile ?? profileById(settingsId);
+  return usePrinter.getState().connectedProfile ?? usePrinter.getState().detectedProfile ?? profileById(settingsId);
+}
+
+async function refreshEpsonStatus(t: Transport): Promise<PrinterStatus | null> {
+  await t.read(30);
+  await send(t, epsonStatusRequest());
+  let buffer = new Uint8Array(0) as Uint8Array;
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    buffer = concat([buffer, await t.read(300)]);
+    const replies = findEpsonStatus(buffer);
+    if (replies.length) {
+      const status = replies[replies.length - 1].status;
+      usePrinter.setState({ status, responded: true });
+      log('info', `Epson: ${status.statusTypeName}, ${status.mediaWidth} mm${status.errors.length ? ', ' + status.errors.join(', ') : ''}`);
+      return status;
+    }
+  }
+  log('error', notRespondingMessage());
+  return null;
+}
+
+async function watchEpsonJob(t: Transport): Promise<void> {
+  let buffer = new Uint8Array(0) as Uint8Array;
+  let seen = 0;
+  let nextPoll = 0;
+  const deadline = Date.now() + 180000;
+  try {
+    while (Date.now() < deadline) {
+      if (Date.now() >= nextPoll) {
+        await send(t, epsonStatusRequest());
+        nextPoll = Date.now() + 2000;
+      }
+      buffer = concat([buffer, await t.read(250)]);
+      const replies = findEpsonStatus(buffer);
+      for (const reply of replies.slice(seen)) {
+        usePrinter.setState({ status: reply.status, responded: true });
+        if (reply.status.errors.length) throw new Error(reply.status.errors.join(', '));
+        if (reply.state === 5) { log('info', 'Epson confirmed print complete.'); return; }
+      }
+      seen = replies.length;
+    }
+    throw new Error('Print outcome uncertain: no completion reply. Check the printer before printing again.');
+  } finally {
+    await t.write(epsonStatusStop()).catch(() => undefined);
+  }
 }

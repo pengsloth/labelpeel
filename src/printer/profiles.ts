@@ -7,6 +7,7 @@ import type { MediaKind } from '../model/types';
 export const BROTHER_VID = 0x04f9;
 
 export interface PrinterProfile {
+  protocol?: 'brother' | 'epson';
   id: string;
   name: string;
   /** USB product ids (normal mode). */
@@ -140,6 +141,13 @@ export const PROFILES: PrinterProfile[] = [
     unsupported: 'The printer is in P-Lite (Editor Lite) mode. Switch the Editor Lite switch off or hold the Editor Lite button until the LED goes out, then reconnect.',
   },
 ];
+
+PROFILES.push(
+  { ...base, protocol: 'epson', id: 'epson-c610', name: 'Epson LW-C610 / LW-C610PX', pids: [], dpi: 360, headPins: 256, media: ['epson'], bluetooth: true, packbits: false,
+    notes: 'Bluetooth printing verified on C610 with 12 mm nylon tape.' },
+  { ...base, protocol: 'epson', id: 'epson-px400', name: 'Epson LW-PX400', pids: [], dpi: 180, headPins: 128, media: ['epson'], bluetooth: true, packbits: false,
+    experimental: 'Printing confirmed by the user with the shared command path. Correct 180 DPI sizing still needs a physical calibration print.' },
+);
 
 export const DEFAULT_PROFILE = PROFILES[0];
 

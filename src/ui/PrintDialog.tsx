@@ -49,7 +49,7 @@ export function PrintDialog() {
   const wrongDk = dkMismatch(status, doc.media);
   const loaded = dk ? 0 : status?.mediaWidth ?? 0;
   const designed = findTape(doc.media.kind, doc.media.width).code;
-  const loadedMm = loaded === 4 ? 3.5 : loaded;
+  const loadedMm = loaded === 4 && profile.protocol !== 'epson' ? 3.5 : loaded;
   // A design for wider tape loses its edges, and the head prints past the tape
   // edge, so printing it needs an explicit override.
   const tooWide = loaded > 0 && designed > loaded + 0.5;
@@ -64,7 +64,7 @@ export function PrintDialog() {
   // Die-cut labels use their whole length, though only the middle is printed.
   const totalMm = !job ? 0 : doc.media.kind === 'dkdie' && doc.media.length ? job.bitmaps.length * doc.media.length : job.bitmaps.reduce((s, b) => s + b.width, 0) / (profile.dpi / 25.4);
   const clipped = job ? new Set(job.bitmaps.filter((b) => b.spillDots > 0)).size : 0;
-  const plan = job ? cutPlan(job.bitmaps.length, p, profile.halfCut, settings.minimalProtocol && !profile.ql) : null;
+  const plan = job ? cutPlan(job.bitmaps.length, profile.protocol === 'epson' ? { ...p, chain: false, cutEvery: 1, halfCut: false } : p, profile.halfCut, settings.minimalProtocol && !profile.ql && profile.protocol !== 'epson') : null;
 
   const doPrint = async () => {
     if (!job) return;
@@ -122,15 +122,15 @@ export function PrintDialog() {
               <Field label="Cut">
                 <Seg value={p.cut} onChange={(cut) => setPrint({ cut })} options={[{ value: 'each', label: 'Each label' }, { value: 'end', label: 'At end' }, { value: 'none', label: 'Never' }]} />
               </Field>
-              {p.cut === 'each' && !(p.halfCut && profile.halfCut) && (job?.bitmaps.length ?? 0) > 1 && (
+              {profile.protocol !== 'epson' && p.cut === 'each' && !(p.halfCut && profile.halfCut) && (job?.bitmaps.length ?? 0) > 1 && (
                 <Field label="Cut every">
                   <NumberInput value={p.cutEvery} onChange={(v) => setPrint({ cutEvery: Math.max(1, Math.round(v)) })} unit="labels" min={1} max={99} step={1} />
                 </Field>
               )}
               {profile.halfCut && <Check checked={p.halfCut} onChange={(halfCut) => setPrint({ halfCut })} label="Half cut" />}
-              <Check checked={p.chain} onChange={(chain) => setPrint({ chain })} label="Chain print (don't feed the last label)" />
+              {profile.protocol !== 'epson' && <Check checked={p.chain} onChange={(chain) => setPrint({ chain })} label="Chain print (don't feed the last label)" />}
               <Check checked={p.mirror} onChange={(mirror) => setPrint({ mirror })} label="Mirror" />
-              {settings.minimalProtocol && <div className="callout warn" style={{ marginTop: 10 }}>Minimal command set is on: cut options are left to the printer.</div>}
+              {profile.protocol !== 'epson' && settings.minimalProtocol && <div className="callout warn" style={{ marginTop: 10 }}>Minimal command set is on: cut options are left to the printer.</div>}
               {transport?.kind === 'serial' && !responded && (
                 <div className="callout warn" style={{ marginTop: 10 }}>
                   The printer hasn't responded since you connected. If it's off, out of range or connected to another device, nothing will print. Check it in the printer panel (Status).

@@ -1,11 +1,11 @@
 import { X, Usb, Bluetooth, Cable, RefreshCw, Scissors, Unplug, Download } from 'lucide-react';
 import { useEditor } from '../state/store';
 import { connect, disconnect, feedAndCut, refreshStatus, usePrinter, effectiveProfile } from '../printer/service';
-import { PROFILES } from '../printer/profiles';
+import { PROFILES, profileById } from '../printer/profiles';
 import { isMac, supportsSerial, supportsUsb } from '../printer/transport';
 import { nativePlatform, nativeSupportsUsb, supportsNative } from '../printer/native';
 import { Check, Field, Select } from './fields';
-import { findTape, isDk } from '../model/media';
+import { findTape, fitMedia, isDk } from '../model/media';
 import { dkMismatch, matchLoadedTape, mediaName, reportedMedia } from './actions';
 import { ANDROID_DOWNLOAD, appForThisDevice, MAC_DOWNLOAD } from './apps';
 
@@ -47,28 +47,32 @@ export function PrinterPanel() {
         <div className="modal-body">
           <Field label="Model" hint={detectedProfile ? `Detected over USB: ${detectedProfile.name}` : 'Select your model. USB connections detect it automatically.'}>
             <Select
-              value={detectedProfile?.id ?? settings.profileId}
+              disabled={!!transport || connecting}
+              value={profile.id}
               onChange={(profileId) => {
                 st().setSettings({ profileId });
+                const selected = profileById(profileId);
+                st().update((d) => ({ ...d, media: fitMedia(d.media, selected.media, selected.maxTape) }));
                 usePrinter.setState({ detectedProfile: null });
               }}
               options={PROFILES.map((p) => ({ value: p.id, label: `${p.name}${p.bluetooth ? ' (Bluetooth)' : ''}${p.experimental ? ' (experimental)' : ''}` }))}
             />
           </Field>
+          {profile.protocol === 'epson' && <div className="callout" style={{ marginBottom: 12 }}>Epson Bluetooth / serial · {profile.dpi} DPI. Short labels may be padded by the printer to about 21 mm (observed on C610, 12 mm nylon tape).</div>}
           {profile.experimental && <div className="callout warn" style={{ marginBottom: 12 }}>{profile.experimental}</div>}
           {profile.unsupported && <div className="callout warn" style={{ marginBottom: 12 }}>{profile.unsupported}</div>}
 
           {!transport ? (
             <>
               <div className="section-title">Connect</div>
-              {supportsNative() ? (
+              {supportsNative() && profile.protocol !== 'epson' ? (
                 <>
                   <div style={{ display: 'grid', gap: 8 }}>
-                    <button className="btn block" disabled={connecting} onClick={() => run(() => connect('native'))}>
+                    <button className="btn block" disabled={connecting} onClick={() => run(() => connect('native', profile))}>
                       <Bluetooth size={15} /> Bluetooth printer
                     </button>
                     {nativeSupportsUsb() && (
-                      <button className="btn block" disabled={connecting} onClick={() => run(() => connect('native-usb'))}>
+                      <button className="btn block" disabled={connecting} onClick={() => run(() => connect('native-usb', profile))}>
                         <Usb size={15} /> USB cable
                       </button>
                     )}
@@ -87,17 +91,17 @@ export function PrinterPanel() {
                 <>
                   <div style={{ display: 'grid', gap: 8 }}>
                     {/* On a Mac only the cu.* serial port works, so list every port. */}
-                    <button className="btn block" disabled={!supportsSerial() || connecting} onClick={() => run(() => connect(isMac() ? 'serial' : 'bluetooth'))}>
+                    <button className="btn block" disabled={!supportsSerial() || connecting} onClick={() => run(() => connect(isMac() ? 'serial' : 'bluetooth', profile))}>
                       <Bluetooth size={15} /> Bluetooth (pair in your OS first)
                     </button>
-                    <button className="btn block" disabled={!supportsUsb() || connecting} onClick={() => run(() => connect('usb'))}>
+                    <button className="btn block" disabled={profile.protocol === 'epson' || !supportsUsb() || connecting} onClick={() => run(() => connect('usb', profile))}>
                       <Usb size={15} /> USB cable
                     </button>
-                    <button className="btn block" disabled={!supportsSerial() || connecting} onClick={() => run(() => connect('serial'))}>
+                    <button className="btn block" disabled={!supportsSerial() || connecting} onClick={() => run(() => connect('serial', profile))}>
                       <Cable size={15} /> Serial / Bluetooth COM port
                     </button>
                   </div>
-                  <AppSuggestion />
+                  {profile.protocol !== 'epson' && <AppSuggestion />}
                   {!supportsSerial() && !supportsUsb() && (
                     <div className="callout err" style={{ marginTop: 12 }}>
                       This browser cannot talk to printers. Use Chrome or Edge on Windows, macOS, Linux or ChromeOS (or Chrome on Android for USB). You can still design labels and download print files.
@@ -110,7 +114,7 @@ export function PrinterPanel() {
                       </>
                     ) : (
                       <>
-                        <b>Bluetooth:</b> the PT-E560BT uses Bluetooth Classic. Pair it in your system settings, then choose it here (Chrome 117+ lists paired printers directly; on Windows you can also pick its outgoing COM port).<br />
+                        <b>Bluetooth:</b> these printers use Bluetooth Classic. Pair it in your system settings, then choose it here (Chrome 117+ lists paired printers directly; on Windows you can also pick its outgoing COM port).<br />
                       </>
                     )}
                     <b>USB:</b> works on macOS, Linux, ChromeOS and Android. On Windows the Brother driver holds the USB device, so use Bluetooth there.
@@ -151,7 +155,7 @@ export function PrinterPanel() {
                 <button className="btn" disabled={busy} onClick={() => run(refreshStatus)}>
                   <RefreshCw size={14} /> Status
                 </button>
-                <button className="btn" disabled={busy} onClick={() => run(() => feedAndCut(profile, doc.media))}>
+                <button className="btn" disabled={busy || profile.protocol === 'epson'} onClick={() => run(() => feedAndCut(profile, doc.media))}>
                   <Scissors size={14} /> Feed &amp; cut
                 </button>
                 {status && (
@@ -168,7 +172,8 @@ export function PrinterPanel() {
 
           <div className="section-title" style={{ marginTop: 16 }}>Advanced</div>
           <Check
-            checked={settings.minimalProtocol}
+            disabled={profile.protocol === 'epson'}
+            checked={profile.protocol !== 'epson' && settings.minimalProtocol}
             onChange={(minimalProtocol) => st().setSettings({ minimalProtocol })}
             label="Minimal command set"
           />

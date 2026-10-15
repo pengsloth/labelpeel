@@ -184,7 +184,7 @@ export type LabelElement =
   | TableElement;
 
 /** P-touch tape and media, or DK rolls for QL printers: continuous ('dk') or die-cut labels ('dkdie'). */
-export type MediaKind = 'tze' | 'hse' | 'fle' | 'fabric' | 'dk' | 'dkdie';
+export type MediaKind = 'epson' | 'tze' | 'hse' | 'fle' | 'fabric' | 'dk' | 'dkdie';
 
 export interface Media {
   kind: MediaKind;
