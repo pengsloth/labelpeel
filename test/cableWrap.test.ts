@@ -24,6 +24,15 @@ describe('measured cable-wrap packing', () => {
     expect(out.length).toBeCloseTo(35.4);
     expect(out.marginStart).toBeUndefined(); // existing margins are retained
   });
+  it.each([0, 1, 3])('anchors the rotated repeat group at the leading margin (repeat=%s)', (repeat) => {
+    const out = generateCableWrap(doc(), { text: 'A\nB', diameter: 15, dir: 'along', gap: 0.6, repeat, overlap: 8 }, measure);
+    const first = out.elements[0], last = out.elements.at(-1)!;
+    const left = first.x + first.w / 2 - first.h / 2;
+    const right = last.x + last.w / 2 + last.h / 2;
+    expect(left).toBeCloseTo(1);
+    expect(out.length! - right).toBeGreaterThan(8);
+    expect(out.elements.every((e) => e.type === 'text' && e.text === 'A\nB')).toBe(true);
+  });
   it('stacks horizontal repeats on separate lines across the tape, honoring zero gap', () => {
     const out = generateCableWrap(doc(), { text: 'ABCDE', diameter: 10, dir: 'around', gap: 0 }, measure);
     const band = printableBand('epson', 12);

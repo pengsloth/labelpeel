@@ -44,7 +44,9 @@ export function generateCableWrap(doc: LabelDoc, p: Record<string, unknown>, mea
   const count = Math.min(100, requested || auto, Math.max(1, Math.floor(span / minimum)));
   const actualGap = count > 1 ? Math.max(0, Math.min(gap, (span - count * minimum) / (count - 1))) : 0;
   const extent = Math.min(natural, Math.max(0.01, (span - (count - 1) * actualGap) / count));
-  const origin = (along ? start : band.y) + (span - (count * extent + (count - 1) * actualGap)) / 2;
+  // Start rotated wraps at the leading margin so all unused length stays on
+  // the trailing end and can be covered by the printed section when wrapped.
+  const origin = along ? start : band.y + (span - (count * extent + (count - 1) * actualGap)) / 2;
   const elements: TextElement[] = [];
   for (let i = 0; i < count; i++) {
     const center = origin + i * (extent + actualGap) + extent / 2;
