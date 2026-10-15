@@ -37,7 +37,10 @@ finished length around 20–21 mm; shorter raster images were padded. This is an
 observation for that setup, not a guaranteed limit for every printer or tape.
 
 The new encoder passes command-byte, orientation, cut, packet parsing and DPI
-tests. Physical validation of the integrated Labelpeel UI remains pending.
+tests. A 30 mm LP1 calibration raster from the new encoder was sent via COM7 on
+2026-10-14 with 24 mm tape (TW:05), 256 raster rows and zero added margins.
+The C610 reported printing (ST:02), then print complete (ST:05), with ER:00.
+Visual confirmation and validation of the integrated Labelpeel UI remain pending.
 
 ## Next work
 
