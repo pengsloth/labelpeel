@@ -46,7 +46,9 @@ integrated Labelpeel UI remains pending.
 ## Cable wraps and previews
 
 Cable-wrap text accepts multiple lines. Automatic repetition uses browser font
-measurements, selected maximum text size and the repeat gap. Start/end design
+measurements, selected maximum text size and the repeat gap. Horizontal text
+repeats on rows across the printable tape band; rotated text repeats on its
+local line axis along the tape length. Copies never concatenate on one line. Start/end design
 margins reduce the repeat area; extra overlap remains blank. Explicit repeats
 shrink to fit, with excessive counts capped to keep blocks separate. Empty text
 or fully exhausted margins produce no generated ink. Loaded fonts trigger a

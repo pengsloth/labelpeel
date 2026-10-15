@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateCableWrap, type WrapMeasure } from '../src/model/cableWrap';
+import { printableBand } from '../src/model/media';
 import { newDoc } from '../src/model/defaults';
 import { estimateEpsonStrip } from '../src/printer/epsonGeometry';
 
@@ -23,15 +24,34 @@ describe('measured cable-wrap packing', () => {
     expect(out.length).toBeCloseTo(35.4);
     expect(out.marginStart).toBeUndefined(); // existing margins are retained
   });
-  it('uses measured width for horizontal repeats and honors zero gap', () => {
+  it('stacks horizontal repeats on separate lines across the tape, honoring zero gap', () => {
     const out = generateCableWrap(doc(), { text: 'ABCDE', diameter: 10, dir: 'around', gap: 0 }, measure);
-    expect(out.elements).toHaveLength(Math.floor((Math.PI * 10 - 3) / 5.2));
+    const band = printableBand('epson', 12);
+    expect(out.elements).toHaveLength(Math.floor(band.height / 2.2));
+    expect(new Set(out.elements.map((e) => e.x)).size).toBe(1);
+    for (let i = 0; i < out.elements.length; i++) {
+      const e = out.elements[i];
+      expect(e.x).toBeCloseTo(1);
+      expect(e.w).toBeCloseTo(Math.min(Math.PI * 10, out.length!) - 3);
+      expect(e.y).toBeGreaterThanOrEqual(band.top);
+      expect(e.y + e.h).toBeLessThanOrEqual(band.top + band.height + 1e-8);
+      if (i) expect(e.y).toBeGreaterThanOrEqual(out.elements[i - 1].y + out.elements[i - 1].h - 1e-8);
+    }
     expect(out.elements.every((e) => e.rotation === 0)).toBe(true);
   });
-  it('fits fewer blocks when another line is added', () => {
-    const single = generateCableWrap(doc(), { text: 'A', diameter: 10 }, measure);
-    const multi = generateCableWrap(doc(), { text: 'A\nB', diameter: 10 }, measure);
+  it.each(['along', 'around'])('fits fewer blocks when another line is added (%s)', (dir) => {
+    const single = generateCableWrap(doc(), { text: 'A', diameter: 10, dir }, measure);
+    const multi = generateCableWrap(doc(), { text: 'A\nB', diameter: 10, dir }, measure);
     expect(multi.elements.length).toBeLessThan(single.elements.length);
+  });
+  it('keeps rotated repeats on separate local lines', () => {
+    const out = generateCableWrap(doc(), { text: 'A', diameter: 10, dir: 'along', gap: 0.5 }, measure);
+    for (let i = 1; i < out.elements.length; i++) {
+      const previous = out.elements[i - 1], next = out.elements[i];
+      expect(next.rotation).toBe(270);
+      expect(next.y).toBeCloseTo(previous.y);
+      expect(next.x + next.w / 2 - next.h / 2).toBeGreaterThanOrEqual(previous.x + previous.w / 2 + previous.h / 2);
+    }
   });
   it('keeps explicit repeats within the available length, shrinking as needed', () => {
     const out = generateCableWrap(doc(), { text: 'A\nB', diameter: 6, repeat: 20, gap: 10 }, measure);
