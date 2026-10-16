@@ -75,3 +75,11 @@ show the selected model's actual DPI.
 This implementation ports independently written Wrapworks framing and raster
 packing. It includes no Epson SDK binaries or proprietary SDK source.
 Public protocol research: <https://github.com/tyalie/RE-epson-label-printer/blob/main/protocol.md>.
+
+## Hosting
+
+GitHub Pages hosts this fork at <https://pengsloth.github.io/labelpeel/>.
+Pushes to `epson-labelworks` run tests and a production build, then deploy to
+Pages. The upstream `main` branch remains separate from the Epson application.
+Bluetooth printing still requires a compatible browser and a locally connected
+printer; hosting does not route print jobs through a server.
