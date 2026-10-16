@@ -18,7 +18,7 @@ Development branch: `epson-labelworks` in `pengsloth/labelpeel`.
 
 Select the Epson model in Printer before connecting. Model selection changes
 the current label to compatible media; existing content is kept. When switching
-models, disconnect first. Choose a 12 mm Epson label for the current C610 cartridge.
+models, disconnect first. Choose the Epson tape width that matches the installed cartridge.
 Preview resolution follows the model's DPI; physical screen size depends on the
 display calibration. Printer-added blank length is not included in the bitmap.
 
@@ -65,7 +65,7 @@ show the selected model's actual DPI.
 
 ## Next work
 
-- Confirm C610 operation from this branch, including a known-length calibration.
+- Validate printing through the complete Labelpeel UI on C610 (encoder calibration already passed).
 - Confirm corrected PX400 scale and printable band on actual hardware.
 - Calibrate printer-added end space on other tape widths and materials.
 - Integrate the proven Android connection route and test it in this application.
